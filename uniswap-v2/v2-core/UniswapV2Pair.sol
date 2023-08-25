@@ -1,27 +1,30 @@
 pragma solidity =0.5.16;
 
 import './interfaces/IUniswapV2Pair.sol';
-import './UniswapV2ERC20.sol';
-import './libraries/Math.sol';
+import './UniswapV2ERC20.sol';  /** Libraries for dealing Math
+import './libraries/Math.sol';   **/
 import './libraries/UQ112x112.sol';
 
 /* What is libraries/UQ112x112 ? 
 
  * Solidity doesn't support floating point numbers so uniswap uses binary point format to encode and manipulate data
 
- * And if you're wondering why solidity doesn't support floating point numbers then open your browser console and calculate `0.1 + 0.2`.
+ * And if you're wondering why solidity doesn't support floating point numbers then open your browser console and calculate
+`0.1 + 0.2`.
    This will eventually cause rounding errors
 
- * UQ112x112 means 112 bits uses for left of the decimal and 112 uses for right of the decimal, which is total 224 bits.
-   224 leaves 32 bits from 256 bits(which is max capacity of a storage slot)
+ * UQ112x112 means 112 bits uses for left of the decimal(the whole part of number) and 112 uses for right of the decimal(the fractional part), 
+which is total 224 bits.   224 leaves 32 bits from 256 bits(which is max capacity of a storage slot)
 
  * Price could fit in 224 bits but accumulation not. The extra 32 bits is for price accumulation.
 
  * Reserves are also using this format, so both reserves can fit in 224 bits and 32 bits is lefts for timestamp.
 
- * Timestamp could be bigger than 32 bits that's why they mod it by 2**32, so it can fit in 32 bits even after 100 years. (check `_update` function)
+ * Timestamp could be bigger than 32 bits that's why they mod it by 2**32, so it can fit in 32 bits even after 100 years.
+(check `_update` function)
 
- * They are saving 3 variables (reserve0 + reserve1 + blockTimestampLast) in a single storage slot for saving gas as we know storage is so expensive
+ * They are saving 3 variables (reserve0 + reserve1 + blockTimestampLast) in a single storage slot for saving gas
+as we know storage is so expensive
  
  * Ethereum storage: https://programtheblockchain.com/posts/2018/03/09/understanding-ethereum-smart-contract-storage/
 
@@ -40,14 +43,15 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     uint public constant MINIMUM_LIQUIDITY = 10**3;
     // the purpose of `MINIMUM_LIQUIDITY` is to prevent division by zero.
 
-    bytes4 private constant SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)'))); // it is a function selector https://docs.soliditylang.org/en/v0.8.15/abi-spec.html?highlight=function%20selector#function-selector
-
+    bytes4 private constant SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)'))); // it is a function selector 
     address public factory; // address of the factory contract which creates pai contract
-    address public token0; // address of a token of this pair
-    address public token1; // address of another token of this pair
+    address public token0; // address of a token of this pair(let's say dogecoin)
+    address public token1; // address of another token of this pair(shiba for ex).The actual tokens are stored in ERC20 contract.
+//the pair contract tracks the reserve of these tokens
 
     uint112 private reserve0;    // supply of token0           //  -------------
-    uint112 private reserve1;   // supply of token1           //               |----> these 3 variables stored in single storage slot
+    uint112 private reserve1;   // supply of token1           //---> these 3 variables stored in single storage slot(saving gas)
+                                                               //they are accessible via getReserves
     uint32  private blockTimestampLast;                      //   --------------
 
     uint public price0CumulativeLast; // used to hold cumulative price
@@ -141,21 +145,24 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         token1 = _token1;
     }
 
-    // update reserves and, on the first call per block, price accumulators
+    // _update is called whenever there are new funds deposited or withdrawn by the liquidity providers 
+   //or tokens are swapped by the traders.
     function _update(uint balance0, uint balance1, uint112 _reserve0, uint112 _reserve1) private {
         require(balance0 <= uint112(-1) && balance1 <= uint112(-1), 'UniswapV2: OVERFLOW');
-        // * `balance0 <= uint112(-1)` -> this is checking the balance should NOT be greater than 112 bits, it is protecting against overflow
-        // * `uint112(-1)` is maximum value of uint112
+        // * `balance0 <= uint112(-1)` -> this is checking the balance should NOT be greater than 112 bits, 
+      //it is protecting against overflow
+         //balance0&1 are the return value of ERC20’s balanceOf function.
+        // * `uint112(-1)` ATTENTION: that means 2**112 -1 (not multiplication)
         // * balance0 & reserve0 both mean the same thing here as balance is the balance of the contract and reserves are added as same as balance
         // * reserve is just not updated yet, and reserve is required to calculate price0CumulativeLast
         uint32 blockTimestamp = uint32(block.timestamp % 2**32);
-        /* we divide any number it will be same as original
+        /*  blockTimestamp can be bigger than uint32 range, therefore wek use modulus here
          * e.g. 5000 % 2**32 = 5000 (check in your console)
          * but it's valid if value is smaller than 2**32
-         * the value of 2**32 is 4294967296
+         *  2**32 =4294967296
          * `4294967296 - 1` is allowed but if we use 4294967296 or greater, the value will be reset (try it yourself on browser console)
          * that's why they are modding it by 2**32, so if the value is greater than this, it gets reset.
-          Note: Always double check what I am writing. This is what I can understand
+          
          */
         uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
