@@ -164,7 +164,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
          * that's why they are modding it by 2**32, so if the value is greater than this, it gets reset.
           
          */
-        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired(?)
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
             /* this `timeElapsed > 0` making sure to protect against flash loan attacks
              * only first transaction of a block will trigger this if statement
@@ -226,57 +226,57 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
 
     // this low-level function should be called from a contract which performs important safety checks
     function mint(address to) external lock returns (uint liquidity) {
-        /* steps -
+        /*It is called when the liquidity provider deposit liquidity.Steps:
          * 1. liquidity provider uses router contract to deposit liquidity
          * 2. Router contract sends assets of liquidity provider to this address
-         * 3. Then we calculate liquidity tokens to be minted
+         * 3. Then we calculate liquidity tokens(new pool ownership tokens) to be minted
          * 4. And mint liquidity tokens for liquidity provider
          * 5. Update the reserves with `_update` function
          */
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
+        (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings.reserve0 and reserve1 is transfered from 
+         //storage to memory,same is done down with totalSupply
         uint balance0 = IERC20(token0).balanceOf(address(this));
         uint balance1 = IERC20(token1).balanceOf(address(this));
         uint amount0 = balance0.sub(_reserve0);
-        // * reserve0 and balance is the same thing, it's just reserves are not updated yet
-        // * so reserve0 and balance0 supposed to be same but it's not as reserves are not updated yet
-        // * so we are subracting `reserve0` from `balance0` so we can get the amount.
+        // reserve0 and balance is the same thing, it's just reserves are not updated yet
+        // so we are subracting `reserve0` from `balance0` so we can get the amount.
         uint amount1 = balance1.sub(_reserve1);
-        bool feeOn = _mintFee(_reserve0, _reserve1);
+        bool feeOn = _mintFee(_reserve0, _reserve1);//for optional protocol fee
         /* uniswap v2 includes 0.05% protocol fee that can be turned on and off
          * if the fee address is set, the protocol can earn 1/6 cut of 0.3%,
          * it means traders still have to pay 0.3% but liquidity providers will receive 0.25% and 0.05% will be earned by protocol 
-         * collecting 0.05% on every trade will impose additional gas cost 
-         * that's why uniswap collects accumulated fees when liquidity is deposited or withdrawn.
+         * collecting 0.05% on every trade will impose additional gas cost. 
+         * that's why uniswap collects accumulated fees only when liquidity is deposited or withdrawn by some complex math equations.
          */
         uint _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
         // * `totalSupply` is coming from `UniswapV2ERC20`
         // * by gas savings they mean, that they are storing it in memory so there will be no need to read it from storage variable
 
         if (_totalSupply == 0) {
-            // * This will be mostly used in beginning as total supply is 0 in beginning
-            liquidity = Math.sqrt(amount0.mul(amount1)).sub(MINIMUM_LIQUIDITY);
-            // * uniswap v2 initially mints shares equal to geometric mean of amounts deposited
-            // * please refer to https://docs.uniswap.org/whitepaper.pdf (3.4 Initialization of liquidity token supply)
-            // * subtracting MINIMUM_LIQUIDITY as we are minting it here
+            // if_totalSupply is 0,it means that this pool is brand new and we need to lock in MINIMIUM_LIQUIDITY amount of pool ownership tokens 
+       //to avoid division by zero in the liquidity calculations.
+            liquidity = Math.sqrt(amount0.mul(amount1)).sub(MINIMUM_LIQUIDITY);//liquidity here is the amount of new pool ownership tokens that 
+                                                                  //   need to be minted to the liquidity provider. 
            _mint(address(0), MINIMUM_LIQUIDITY);
            /* minting tokens to address(0)
             * to permanently lock the first MINIMUM_LIQUIDITY tokens
             * total supply will be increase to MINIMUM_LIQUIDITY from 0 so we can prevent division by zero
             */
         } else {
-            liquidity = Math.min(amount0.mul(_totalSupply) / _reserve0, amount1.mul(_totalSupply) / _reserve1);
-            /* totalSupply is total liquidity all liquidity providers has added
+            liquidity = Math.min(amount0.mul(_totalSupply) / _reserve0, amount1.mul(_totalSupply) / _reserve1); 
+//The liquidity provider gets a proportional amount of pool ownership tokens depending on how much new funds he provides 
+        
              * `amount0` ------------> amount that a liquidity provider is entering
              * `_reserve0` ----------> total reserves (balance of a asset without including amount which is being deposited)
              * `_totalSupply` -------> total supply of liquidity tokens
              * `amount0 / reserves` ----------> % of amount of a asset a liquidity provider is adding
-             * `amount0.mul(_totalSupply) / _reserve0` -------------> * multiplying it by `_totalSupply`
-                                                                      * it is how many liquidity tokens you should get
-             *  QUESTION left: What are they taking minimum from both?
+          
+             *  QUESTION left:Why min of both?
              */
         }
         require(liquidity > 0, 'UniswapV2: INSUFFICIENT_LIQUIDITY_MINTED');
-        _mint(to, liquidity);
+        _mint(to, liquidity);/*to is the address of the liquidity provider 
+      this will be provided by the Periphery contract called the Router which calls the mint function */
 
         _update(balance0, balance1, _reserve0, _reserve1); // updating reserves and price0CumulativeLast
         if (feeOn) kLast = uint(reserve0).mul(reserve1);
@@ -300,9 +300,8 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         uint balance1 = IERC20(_token1).balanceOf(address(this));
         uint liquidity = balanceOf[address(this)];
         /* from router contract `removeLiquidity` function, user transfers his liquidity token
-         * and then we are chechking balance of this contract with `balanceOf[address(this)]`
-         * balanceOf is coming from ERC20 contract
-         */
+         * and then we are checking balance of this contract with `balanceOf[address(this)]`
+            */
 
         bool feeOn = _mintFee(_reserve0, _reserve1);
         uint _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
@@ -318,8 +317,8 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
                                                                 * then liquidity provider will get their original + fee amount
          */
         require(amount0 > 0 && amount1 > 0, 'UniswapV2: INSUFFICIENT_LIQUIDITY_BURNED');
-        _burn(address(this), liquidity);
-        // * buring the liquidity tokens as you are withdrawing it
+        _burn(address(this), liquidity);//_burn and _mint functions coming from ERC20 contract
+        // * burning the liquidity tokens as you are withdrawing it
         _safeTransfer(_token0, to, amount0);
         _safeTransfer(_token1, to, amount1);
         // * transferring the asset amounts to liquidity provider  
@@ -391,7 +390,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
 
     /* somtimes reserves goes out of sync with contract balance
        that's why we have `skim` and `sync` functions
-     * `skin` -> you transfer extra amount to `to` address
+     * `skim` -> you transfer extra amount to `to` address
      * `sync` -> you uses `_update` function to make them sync
      */
 
