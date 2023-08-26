@@ -271,7 +271,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
              * `_totalSupply` -------> total supply of liquidity tokens
              * `amount0 / reserves` ----------> % of amount of a asset a liquidity provider is adding
           
-             *  QUESTION left:Why min of both?
+             *  QUESTION left:Why min of both? This is a punishment for liquidity provider if they aren't providing equal value of each token
              */
         }
         require(liquidity > 0, 'UniswapV2: INSUFFICIENT_LIQUIDITY_MINTED');
