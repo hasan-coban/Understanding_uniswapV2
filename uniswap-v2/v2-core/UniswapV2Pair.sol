@@ -54,7 +54,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
                                                                //they are accessible via getReserves
     uint32  private blockTimestampLast;                      //   --------------
 
-    uint public price0CumulativeLast; // used to hold cumulative price
+    uint public price0CumulativeLast; // last price for token0
     uint public price1CumulativeLast; // same but for token1
     uint public kLast; // reserve0 * reserve1, as of immediately after the most recent liquidity event
     // * It's the constant product formula
