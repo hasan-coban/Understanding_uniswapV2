@@ -156,7 +156,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         // * balance0 & reserve0 both mean the same thing here as balance is the balance of the contract and reserves are added as same as balance
         // * reserve is just not updated yet, and reserve is required to calculate price0CumulativeLast
         uint32 blockTimestamp = uint32(block.timestamp % 2**32);
-        /*  blockTimestamp can be bigger than uint32 range, therefore wek use modulus here
+        /* 32 bits of blockTimeStamp would be over flow at 2106/02/27. Therefore we use modulus here
          * e.g. 5000 % 2**32 = 5000 (check in your console)
          * but it's valid if value is smaller than 2**32
          *  2**32 =4294967296
